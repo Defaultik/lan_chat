@@ -7,7 +7,7 @@ def server_connect(host, port):
     print("Trying to connect to the server...")
 
     try:
-        # defines our socket for a variable and connects
+        # defines our socket as a variable and connects to the server
         connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connection.connect((host, port))
 
