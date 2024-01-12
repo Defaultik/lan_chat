@@ -1,9 +1,13 @@
-import socket, threading, os
+import socket, threading, sys, os
 from datetime import datetime
 
 
 def server_connect(host, port):
-    os.system("cls")
+    if (sys.platform == "win32"):
+        os.system("cls")
+    else:
+        os.system("clear")
+
     print("Trying to connect to the server...")
 
     try:
@@ -16,7 +20,7 @@ def server_connect(host, port):
         threading.Thread(target=send, args=(connection, )).start() # starts loop to send messages in a new thread
         threading.Thread(target=receive, args=(connection, )).start() # starts loop to receive messages in a new thread
     except socket.error as error:
-        print("Connection failed: %s" % error)
+        print("Connection failed: %s" % (error))
     except KeyboardInterrupt:
         connection.close()
 
@@ -43,4 +47,7 @@ def receive(conn):
 
 
 if __name__ == "__main__":
-    server_connect("127.0.0.1", 55555)
+    try:
+        server_connect("0.0.0.0", int(sys.argv[1]))
+    except:
+        print("Invalid argument!\nExample: python %s <PORT>" % (sys.argv[0]))

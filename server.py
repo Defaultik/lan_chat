@@ -1,4 +1,4 @@
-import socket, threading, os, sys
+import socket, threading, sys, os
 from datetime import datetime
 
 clients = []
@@ -75,4 +75,4 @@ if __name__ == "__main__":
     try:
         run_server("0.0.0.0", int(sys.argv[1]))
     except:
-        print("Invalid argument!\nExample: python %s <PORT>" % sys.argv[0])
+        print("Invalid argument!\nExample: python %s <PORT>" % (sys.argv[0]))
