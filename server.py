@@ -1,4 +1,4 @@
-import socket, threading, os
+import socket, threading, os, sys
 from datetime import datetime
 
 clients = []
@@ -19,7 +19,11 @@ def run_server(host, port):
         connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connection.bind((host, port))
 
-        os.system("cls")
+        if (sys.platform == "win32"):
+            os.system("cls")
+        else:
+            os.system("clear")
+            
         print(banner)
 
         connection.listen() # waits for new clients
@@ -68,4 +72,7 @@ def server_processing(client_socket, address):
 
 
 if __name__ == "__main__":
-    run_server("127.0.0.1", 55555)
+    try:
+        run_server("0.0.0.0", int(sys.argv[1]))
+    except:
+        print("Invalid argument!\nExample: python %s <PORT>" % sys.argv[0])
