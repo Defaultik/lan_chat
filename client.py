@@ -1,53 +1,83 @@
-import socket, threading, sys, os
+import threading
+import argparse
+import socket
+import sys
+import os
 from datetime import datetime
 
 
-def server_connect(host, port):
+current_time = datetime.now().strftime("%H:%M")
+
+
+# terminal screen clearing function in both types of systems (unix-like & win)
+def clear_screen():
     if (sys.platform == "win32"):
         os.system("cls")
     else:
         os.system("clear")
 
-    print("Trying to connect to the server...")
 
+def main():
+    # creates an argument parser to intercept the arguments that user enters when calling a file
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p", "--port", help="port of server socket (0-65535)")
+
+    clear_screen()
+
+    # trying to start server
     try:
-        # defines our socket as a variable and connects to the server
-        connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connection.connect((host, port))
-
-        print("Connection with server establishment!\n")
-
-        threading.Thread(target=send, args=(connection, )).start() # starts loop to send messages in a new thread
-        threading.Thread(target=receive, args=(connection, )).start() # starts loop to receive messages in a new thread
-    except socket.error as error:
-        print("Connection failed: %s" % (error))
-    except KeyboardInterrupt:
-        connection.close()
+        # if didn't find an argument then start the server with port 8383
+        if parser.parse_args().port is None:
+            print("Port (-p) wasn't selected. Default port: 8383\n")
+            Client("0.0.0.0", 8383).connect()
+        # if the argument is found then start the server with the user port
+        else:
+            Client("0.0.0.0", int(parser.parse_args().port)).connect()
+    except socket.error as e:
+        print("Socket error: " + e)
 
 
-# simple function to send messages to the server
-def send(conn):
-    while True:
-        message = input()
-        conn.send(message.encode("utf-8")) # encodes our message to utf-8 format
+class Client:
+    # defines our ip, port, socket to variables
+    def __init__(client, host, port):
+        client.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.host = host
+        client.port = port
 
 
-# simple function to receive data from the server
-def receive(conn):
-    while True:
+    def connect(client):
+        print("[%s] Trying to connect to the server..." % current_time)
+
         try:
-            data = conn.recv(1024) # gets data from the server in utf-8 format
+            client.socket.connect((client.host, client.port))
+            print("[%s] Connection with the server establishment!\n" % current_time)
+            
+            threading.Thread(target=client.receive).start() # starts a loop to receive messages in a new thread
+            threading.Thread(target=client.send).start() # starts a loop to send messages in a new thread
+        except socket.error as e:
+            print("Socket Error: " + e)
+        except KeyboardInterrupt:
+            print("[%s] You disconnected from the server!" % current_time)
+            client.socket.close()
 
-            if data: # checks if data is not nothing
-                print("[%s] %s" % (datetime.now().strftime("%H:%M:%S"), data.decode("utf-8"))) # brings data to the user in unicode format
-        except:
-            conn.close()
-            print("[!] Connection lost")
-            break
+    
+    def send(client):
+        while True:
+            message = input()
+            client.socket.send(message.encode("utf-8")) # encodes our message to utf-8 format
+
+
+    def receive(client):
+        while True:
+            try:
+                data = client.socket.recv(1024) # gets data from the server in utf-8 format
+
+                if data:
+                    print(data.decode("utf-8")) # prints data in unicode format
+            except:
+                print("[%s] Connection lost" % current_time)
+                client.socket.close()
 
 
 if __name__ == "__main__":
-    try:
-        server_connect("0.0.0.0", int(sys.argv[1]))
-    except:
-        print("Invalid argument!\nExample: python %s <PORT>" % (sys.argv[0]))
+    main()
