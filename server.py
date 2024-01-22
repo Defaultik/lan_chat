@@ -30,10 +30,10 @@ def main():
         # if didn't find an argument then start the server with port 8383
         if parser.parse_args().port is None:
             print("Port (-p) wasn't selected. Default port: 8383\n")
-            Server("0.0.0.0", 8383).start()
+            Server("127.0.0.1", 8383).start()
         # if the argument is found then start the server with the user port
         else:
-            Server("0.0.0.0", int(parser.parse_args().port)).start()
+            Server("127.0.0.1", int(parser.parse_args().port)).start()
     except socket.error as e:
         print("Socket Error: %s" % e)
 

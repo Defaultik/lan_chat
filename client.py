@@ -29,10 +29,10 @@ def main():
         # if didn't find an argument then start the server with port 8383
         if parser.parse_args().port is None:
             print("Port (-p) wasn't selected. Default port: 8383\n")
-            Client("0.0.0.0", 8383).connect()
+            Client("127.0.0.1", 8383).connect()
         # if the argument is found then start the server with the user port
         else:
-            Client("0.0.0.0", int(parser.parse_args().port)).connect()
+            Client("127.0.0.1", int(parser.parse_args().port)).connect()
     except socket.error as e:
         print("Socket error: %s" % e)
 
@@ -75,8 +75,9 @@ class Client:
                 if data:
                     print(data.decode("utf-8")) # prints data in unicode format
             except:
-                print("[%s] Connection lost" % current_time)
+                print("[%s] Connection with server lost" % current_time)
                 client.socket.close()
+                break
 
 
 if __name__ == "__main__":
