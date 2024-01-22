@@ -35,7 +35,7 @@ def main():
         else:
             Server("0.0.0.0", int(parser.parse_args().port)).start()
     except socket.error as e:
-        print("Socket Error: " + e)
+        print("Socket Error: %s" % e)
 
 
 class Server:

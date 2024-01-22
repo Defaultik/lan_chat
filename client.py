@@ -34,7 +34,7 @@ def main():
         else:
             Client("0.0.0.0", int(parser.parse_args().port)).connect()
     except socket.error as e:
-        print("Socket error: " + e)
+        print("Socket error: %s" % e)
 
 
 class Client:
@@ -55,7 +55,7 @@ class Client:
             threading.Thread(target=client.receive).start() # starts a loop to receive messages in a new thread
             threading.Thread(target=client.send).start() # starts a loop to send messages in a new thread
         except socket.error as e:
-            print("Socket Error: " + e)
+            print("Socket error: %s" % e)
         except KeyboardInterrupt:
             print("[%s] You disconnected from the server!" % current_time)
             client.socket.close()
