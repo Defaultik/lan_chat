@@ -1,8 +1,4 @@
-import threading
-import argparse
-import socket
-import sys
-import os
+import threading, argparse, pickle, socket, sys, os
 from datetime import datetime
 
 
@@ -18,7 +14,7 @@ def main():
     # creates an argument parser to intercept the arguments that user enters when calling a file
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--ip", help="ip of the server socket")
-    parser.add_argument("-p", "--port", help="port of server socket (0-65535)")
+    parser.add_argument("-p", "--port", help="port of the server socket (0-65535)")
 
     clear_screen()
 
@@ -36,7 +32,7 @@ def main():
         else:
             Client(parser.parse_args().ip, int(parser.parse_args().port)).connect()
     except socket.error as e:
-        print("Socket error: %s" % e)
+        print("Socket error\n%s" % e)
 
 
 class Client:
@@ -58,27 +54,39 @@ class Client:
             threading.Thread(target=self.send).start() # starts a loop to send messages in a new thread
         except socket.error as e:
             print("Connecting error: %s" % e)
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, SystemExit):
             print("[%s] You disconnected from the server!" % datetime.now().strftime("%H:%M"))
             self.socket.close()
 
     
     def send(self):
-        while True:
-            msg = input()
-            self.socket.send(msg.encode("utf-8")) # encodes our message to utf-8 format
+        try:
+            while True:
+                msg = input()
+                msg = Message("msg", datetime.now().strftime("%H:%M"), msg, "")
+
+                self.socket.send(pickle.dumps(msg))
+        except (KeyboardInterrupt, SystemExit, EOFError):
+            sys.exit()
 
 
     def receive(self):
-        while True:
-            try:
+        try:
+            while True:
                 data = self.socket.recv(1024) # gets data from the server in utf-8 format
 
                 if data:
-                    print(data.decode("utf-8")) # prints data in unicode format
-            except:
-                print("[%s] Connection lost" % datetime.now().strftime("%H:%M"))
-                self.socket.close()
+                    print(pickle.loads(data))
+        except ConnectionResetError:
+            print("[%s] Connection to the server lost" % datetime.now().strftime("%H:%M"))
+
+
+class Message:
+    def __init__(self, type, time, content, nickname):
+        self.type = type
+        self.time = time
+        self.content = content
+        self.nickname = nickname
 
 
 if __name__ == "__main__":

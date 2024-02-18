@@ -1,8 +1,4 @@
-import threading
-import argparse
-import socket
-import sys
-import os
+import threading, argparse, pickle, socket, sys, os
 from datetime import datetime
 
 
@@ -53,7 +49,7 @@ class Server:
             
             # waits for new connections
             self.socket.listen()
-            print("[%s] Waiting for new connections!\n" % datetime.now().strftime("%H:%M"))
+            print("[%s] Waiting for new connections\n" % datetime.now().strftime("%H:%M"))
 
             # when we found new client --> start new thread specially for him
             threading.Thread(target=self.new_client, daemon=True).start()
@@ -63,10 +59,9 @@ class Server:
 
                 if self.command == "exit()":
                     break
-        except KeyboardInterrupt:
-            pass
+        except (KeyboardInterrupt, SystemExit):
+            print("\nServer connection closed")
         finally:
-            print("Server shut down")
             self.socket.close()
 
     
@@ -81,36 +76,39 @@ class Server:
 class Client:    
     def __init__(self, sock, addr):
         self.socket = sock
-        self.address = addr
+        self.address = addr[0]
 
 
     def handling(self):
-        print("[%s] (%s) Client connected" % (datetime.now().strftime("%H:%M"), self.address[0]))
+        print("[%s] (%s) Client connected" % (datetime.now().strftime("%H:%M"), self.address))
 
         with clients_lock:
-                clients.append(self.socket)
+            clients.append(self.socket)
 
-        while True:
-            try:
+        try:
+            while True:
                 data = self.socket.recv(1024) # getting user data
 
                 if data: # checks if data is not nothing
-                    msg = data.decode("utf-8") # decodes our data from utf-8 code to unicode
-                    msg = "[%s] %s: %s" % (datetime.now().strftime("%H:%M"), self.address[0], msg)
+                    msg = pickle.loads(data)
+                    msg = "[%s] %s: %s" % (msg.time, self.address, msg.content)
 
-                    with clients_lock:
-                        for client in clients:
-                            if client != self.socket: # if client is not sender
-                                try:
-                                    client.send(msg.encode("utf-8"))
-                                except:
-                                    clients.remove(client)
-                                
-                        print(msg)
-            except:
-                self.socket.close()
-                print("[%s] (%s) Client disconected" % (datetime.now().strftime("%H:%M"), self.address[0]))
-                break
+                    for client in clients:
+                        if client != self.socket:
+                            client.send(pickle.dumps(msg))
+
+                    print(msg)
+        except ConnectionResetError:
+            print("[%s] (%s) Client disconected" % (datetime.now().strftime("%H:%M"), self.address))
+
+            with clients_lock:
+                clients.remove(self.socket)
+        finally:
+            self.socket.close()
+
+
+class Message:
+    pass
 
 
 if __name__ == "__main__":
