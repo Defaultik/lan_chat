@@ -6,8 +6,8 @@ import os
 from datetime import datetime
 
 
-users = []
-current_time = datetime.now().strftime("%H:%M")
+clients = []
+clients_lock = threading.Lock()
 
 
 # terminal screen clearing function in both types of systems (unix-like & win)
@@ -30,10 +30,10 @@ def main():
         # if didn't find an argument then start the server with port 8383
         if parser.parse_args().port is None:
             print("Port (-p) wasn't selected. Default port: 8383\n")
-            Server("127.0.0.1", 8383).start()
+            Server(socket.gethostbyname(socket.gethostname()), 8383).start()
         # if the argument is found then start the server with the user port
         else:
-            Server("127.0.0.1", int(parser.parse_args().port)).start()
+            Server(socket.gethostbyname(socket.gethostname()), int(parser.parse_args().port)).start()
     except socket.error as e:
         print("Socket Error: %s" % e)
 
@@ -46,14 +46,14 @@ class Server:
         server.port = port
 
     
-    def start(server):
+    def start(server):        
         try:
             server.socket.bind((server.host, server.port))
             print("%s:%s" % (server.host, server.port))
             
             # waits for new connections
             server.socket.listen()
-            print("[%s] Waiting for new connections!\n" % current_time)
+            print("[%s] Waiting for new connections!\n" % datetime.now().strftime("%H:%M"))
 
             # when we found new client --> start new thread specially for him
             threading.Thread(target=server.new_client, daemon=True).start()
@@ -85,28 +85,31 @@ class Client:
 
 
     def handling(client):
-        print("[%s] New client connected! (%s)" % (current_time, client.address[0]))
-        users.append(client.socket)
+        print("[%s] (%s) Client connected" % (datetime.now().strftime("%H:%M"), client.address[0]))
+
+        with clients_lock:
+                clients.append(client.socket)
 
         while True:
             try:
                 data = client.socket.recv(1024) # getting user data
 
                 if data: # checks if data is not nothing
-                    message = data.decode("utf-8") # decodes our data from utf-8 code to unicode
-                    message = "[%s] %s: %s" % (current_time, client.address[0], message)
-                    
-                    for user in users:
-                        if user != client.socket: # if client is not sender
-                            try:
-                                user.send(message.encode("utf-8"))
-                            except:
-                                users.remove[user]
+                    msg = data.decode("utf-8") # decodes our data from utf-8 code to unicode
+                    msg = "[%s] %s: %s" % (datetime.now().strftime("%H:%M"), client.address[0], msg)
+
+                    with clients_lock:
+                        for client in clients:
+                            if client != client.socket: # if client is not sender
+                                try:
+                                    client.send(msg.encode("utf-8"))
+                                except:
+                                    clients.remove(client)
                                 
-                    print("%s" % (message))
+                        print(msg)
             except:
                 client.socket.close()
-                print("[%s] Client disconected! (%s)" % (current_time, client.address[0]))
+                print("[%s] (%s) Client disconected" % (datetime.now().strftime("%H:%M"), client.address[0]))
                 break
 
 
