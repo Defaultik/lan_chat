@@ -40,67 +40,67 @@ def main():
 
 class Server:
     # defines our ip, port, socket to variables
-    def __init__(server, host, port):
-        server.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.host = host
-        server.port = port
+    def __init__(self, host, port):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.host = host
+        self.port = port
 
     
-    def start(server):        
+    def start(self):        
         try:
-            server.socket.bind((server.host, server.port))
-            print("%s:%s" % (server.host, server.port))
+            self.socket.bind((self.host, self.port))
+            print("%s:%s" % (self.host, self.port))
             
             # waits for new connections
-            server.socket.listen()
+            self.socket.listen()
             print("[%s] Waiting for new connections!\n" % datetime.now().strftime("%H:%M"))
 
             # when we found new client --> start new thread specially for him
-            threading.Thread(target=server.new_client, daemon=True).start()
+            threading.Thread(target=self.new_client, daemon=True).start()
 
             while True:
-                server.command = input()
+                self.command = input()
 
-                if server.command == "exit()":
+                if self.command == "exit()":
                     break
         except KeyboardInterrupt:
             pass
         finally:
             print("Server shut down")
-            server.socket.close()
+            self.socket.close()
 
     
-    def new_client(server):
+    def new_client(self):
         while True:
-            sock, addr = server.socket.accept()
+            sock, addr = self.socket.accept()
 
             # starts server interaction with user in a new thread
             threading.Thread(target=Client(sock, addr).handling, daemon=True).start()
 
 
 class Client:    
-    def __init__(client, sock, addr):
-        client.socket = sock
-        client.address = addr
+    def __init__(self, sock, addr):
+        self.socket = sock
+        self.address = addr
 
 
-    def handling(client):
-        print("[%s] (%s) Client connected" % (datetime.now().strftime("%H:%M"), client.address[0]))
+    def handling(self):
+        print("[%s] (%s) Client connected" % (datetime.now().strftime("%H:%M"), self.address[0]))
 
         with clients_lock:
-                clients.append(client.socket)
+                clients.append(self.socket)
 
         while True:
             try:
-                data = client.socket.recv(1024) # getting user data
+                data = self.socket.recv(1024) # getting user data
 
                 if data: # checks if data is not nothing
                     msg = data.decode("utf-8") # decodes our data from utf-8 code to unicode
-                    msg = "[%s] %s: %s" % (datetime.now().strftime("%H:%M"), client.address[0], msg)
+                    msg = "[%s] %s: %s" % (datetime.now().strftime("%H:%M"), self.address[0], msg)
 
                     with clients_lock:
                         for client in clients:
-                            if client != client.socket: # if client is not sender
+                            if client != self.socket: # if client is not sender
                                 try:
                                     client.send(msg.encode("utf-8"))
                                 except:
@@ -108,8 +108,8 @@ class Client:
                                 
                         print(msg)
             except:
-                client.socket.close()
-                print("[%s] (%s) Client disconected" % (datetime.now().strftime("%H:%M"), client.address[0]))
+                self.socket.close()
+                print("[%s] (%s) Client disconected" % (datetime.now().strftime("%H:%M"), self.address[0]))
                 break
 
 

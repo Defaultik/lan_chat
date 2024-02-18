@@ -1,6 +1,5 @@
 import threading
 import argparse
-import pickle
 import socket
 import sys
 import os
@@ -42,51 +41,44 @@ def main():
 
 class Client:
     # defines our ip, port, socket to variables
-    def __init__(client, host, port):
-        client.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.host = host
-        client.port = port
+    def __init__(self, host, port):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.host = host
+        self.port = port
 
 
-    def connect(client):
+    def connect(self):
         print("[%s] Trying to connect to the server..." % datetime.now().strftime("%H:%M"))
 
         try:
-            client.socket.connect((client.host, client.port))
+            self.socket.connect((self.host, self.port))
             print("[%s] Connection with the server establishment!\n" % datetime.now().strftime("%H:%M"))
             
-            threading.Thread(target=client.receive).start() # starts a loop to receive messages in a new thread
-            threading.Thread(target=client.send).start() # starts a loop to send messages in a new thread
+            threading.Thread(target=self.receive).start() # starts a loop to receive messages in a new thread
+            threading.Thread(target=self.send).start() # starts a loop to send messages in a new thread
         except socket.error as e:
             print("Connecting error: %s" % e)
         except KeyboardInterrupt:
             print("[%s] You disconnected from the server!" % datetime.now().strftime("%H:%M"))
-            client.socket.close()
+            self.socket.close()
 
     
-    def send(client):
+    def send(self):
         while True:
             msg = input()
-            client.socket.send(msg.encode("utf-8")) # encodes our message to utf-8 format
+            self.socket.send(msg.encode("utf-8")) # encodes our message to utf-8 format
 
 
-    def receive(client):
+    def receive(self):
         while True:
             try:
-                data = client.socket.recv(1024) # gets data from the server in utf-8 format
+                data = self.socket.recv(1024) # gets data from the server in utf-8 format
 
                 if data:
                     print(data.decode("utf-8")) # prints data in unicode format
             except:
                 print("[%s] Connection lost" % datetime.now().strftime("%H:%M"))
-                client.socket.close()
-
-
-class Message:
-    def __init__(self, type, length, msg):
-        self.type = type
-        self.length = length
-        self.content = msg
+                self.socket.close()
 
 
 if __name__ == "__main__":
