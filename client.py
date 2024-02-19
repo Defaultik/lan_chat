@@ -10,37 +10,41 @@ def clear_screen():
         os.system("clear")
 
 
+def nickname_creation():
+    nickname = input("Enter your nickname: ")
+    return nickname
+
+
 def main():
     # creates an argument parser to intercept the arguments that user enters when calling a file
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--ip", help="ip of the server socket")
-    parser.add_argument("-p", "--port", help="port of the server socket (0-65535)")
 
+    parser.add_argument("-i", "--ip", required=True, help="ip of the server socket")
+    parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
+
+    if not parser.parse_args().ip:
+        parser.error("IP (-i) of the socket wasn't given")
+
+    nickname = nickname_creation()
     clear_screen()
 
-    # trying to start server
     try:
-        if parser.parse_args().ip is None:
-            print("IP of the socket (-i) wasn't given.")
-            return False
-
-        # if didn't find an argument then start the server with port 8383
-        if parser.parse_args().port is None:
-            print("Port (-p) wasn't given. Default port: 8383\n")
-            Client(parser.parse_args().ip, 8383).connect()
-        # if the argument is found then start the server with the user port
+        if not parser.parse_args().port:
+            print("Port (-p) of the socket wasn't given. Default port: 8383\n")
+            Client(parser.parse_args().ip, 8383, nickname).connect()
         else:
-            Client(parser.parse_args().ip, int(parser.parse_args().port)).connect()
+            Client(parser.parse_args().ip, parser.parse_args.port, nickname).connect()
     except socket.error as e:
-        print("Socket error\n%s" % e)
+        print("Socket Error\n%s" % e)
 
 
 class Client:
     # defines our ip, port, socket to variables
-    def __init__(self, host, port):
+    def __init__(self, host, port, nickname):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.host = host
         self.port = port
+        self.nickname = nickname
 
 
     def connect(self):
@@ -63,11 +67,11 @@ class Client:
         try:
             while True:
                 msg = input()
-                msg = Message("msg", datetime.now().strftime("%H:%M"), msg, "")
+                msg = Message("msg", datetime.now().strftime("%H:%M"), msg, self.nickname)
 
                 self.socket.send(pickle.dumps(msg))
         except (KeyboardInterrupt, SystemExit, EOFError):
-            sys.exit()
+            return
 
 
     def receive(self):
@@ -77,7 +81,7 @@ class Client:
 
                 if data:
                     print(pickle.loads(data))
-        except ConnectionResetError:
+        except (ConnectionResetError, ConnectionAbortedError):
             print("[%s] Connection to the server lost" % datetime.now().strftime("%H:%M"))
 
 

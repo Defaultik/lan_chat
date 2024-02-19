@@ -17,21 +17,19 @@ def clear_screen():
 def main():
     # creates an argument parser to intercept the arguments that user enters when calling a file
     parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--port", help="port of server socket (0-65535)")
+
+    parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
 
     clear_screen()
 
-    # trying to start server
     try:
-        # if didn't find an argument then start the server with port 8383
-        if parser.parse_args().port is None:
-            print("Port (-p) wasn't selected. Default port: 8383\n")
+        if not parser.parse_args().port:
+            print("Port (-p) of the socket wasn't given. Default port: 8383\n")
             Server(socket.gethostbyname(socket.gethostname()), 8383).start()
-        # if the argument is found then start the server with the user port
         else:
-            Server(socket.gethostbyname(socket.gethostname()), int(parser.parse_args().port)).start()
+            Server(socket.gethostbyname(socket.gethostname()), parser.parse_args().port).start()
     except socket.error as e:
-        print("Socket Error: %s" % e)
+        print("Socket Error\n%s" % e)
 
 
 class Server:
@@ -91,11 +89,12 @@ class Client:
 
                 if data: # checks if data is not nothing
                     msg = pickle.loads(data)
-                    msg = "[%s] %s: %s" % (msg.time, self.address, msg.content)
+                    msg = "[%s] %s: %s" % (datetime.now().strftime("%H:%M"), msg.nickname, msg.content)
 
-                    for client in clients:
-                        if client != self.socket:
-                            client.send(pickle.dumps(msg))
+                    with clients_lock:
+                        for client in clients:
+                            if client != self.socket:
+                                client.send(pickle.dumps(msg))
 
                     print(msg)
         except ConnectionResetError:
