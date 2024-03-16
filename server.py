@@ -28,6 +28,7 @@ def main():
             Server(socket.gethostbyname(socket.gethostname()), 8383).start()
         else:
             Server(socket.gethostbyname(socket.gethostname()), parser.parse_args().port).start()
+            
     except socket.error as e:
         print("Socket Error\n%s" % e)
 
@@ -57,8 +58,10 @@ class Server:
 
                 if self.command == "exit()":
                     break
+
         except (KeyboardInterrupt, SystemExit):
             print("\nServer connection closed")
+
         finally:
             self.socket.close()
 
@@ -89,19 +92,20 @@ class Client:
 
                 if data: # checks if data is not nothing
                     msg = pickle.loads(data)
-                    msg = "[%s] %s: %s" % (datetime.now().strftime("%H:%M"), msg.nickname, msg.content)
 
                     with clients_lock:
                         for client in clients:
                             if client != self.socket:
                                 client.send(pickle.dumps(msg))
 
-                    print(msg)
+                    print("[%s] %s: %s" % (datetime.now().strftime("%H:%M"), msg.nickname, msg.content))
+
         except ConnectionResetError:
             print("[%s] (%s) Client disconected" % (datetime.now().strftime("%H:%M"), self.address))
 
             with clients_lock:
                 clients.remove(self.socket)
+
         finally:
             self.socket.close()
 
