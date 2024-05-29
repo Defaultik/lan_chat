@@ -3,6 +3,7 @@ this is simple python utility that allows you to communicate with your friends i
 
 ## features
 * nickname creation
+* server commands
 * pm's (planned)
 * encryption (planned)
 
