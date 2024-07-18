@@ -1,9 +1,14 @@
-import threading, argparse, pickle, socket, sys, os
+import asyncio
+import argparse
+import pickle
+import socket
+import sys
+import os
 from datetime import datetime
 
 
 clients = []
-clients_lock = threading.Lock()
+clients_lock = asyncio.Lock()
 
 
 # terminal screen clearing function in both types of systems (unix-like & win)
@@ -14,23 +19,25 @@ def clear_screen():
         os.system("clear")
 
 
-def main():
+def init():
+    global parser
+
     # creates an argument parser to intercept the arguments that user enters when calling a file
     parser = argparse.ArgumentParser()
-
     parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
 
     clear_screen()
+    asyncio.run(main())
+
+
+async def main():
+    ip = socket.gethostbyname(socket.gethostname())
+    port = parser.parse_args().port or 8383
 
     try:
-        if not parser.parse_args().port:
-            print("Port (-p) of the socket wasn't given. Default port: 8383\n")
-            Server(socket.gethostbyname(socket.gethostname()), 8383).start()
-        else:
-            Server(socket.gethostbyname(socket.gethostname()), parser.parse_args().port).start()
-            
+        await Server(ip, port).start()
     except socket.error as e:
-        print("Socket Error\n%s" % e)
+        print(f"\n[Socket Error]\n{e}")
 
 
 class Server:
@@ -41,73 +48,64 @@ class Server:
         self.port = port
 
     
-    def start(self):        
+    async def start(self):        
         try:
-            self.socket.bind((self.host, self.port))
+            self.server = await asyncio.start_server(self.new_client, self.host, self.port)
             print("%s:%s" % (self.host, self.port))
-            
-            # waits for new connections
-            self.socket.listen()
             print("[%s] Waiting for new connections\n" % datetime.now().strftime("%H:%M"))
 
-            # when we found new client --> start new thread specially for him
-            threading.Thread(target=self.new_client, daemon=True).start()
-
-            while True:
-                self.command = input()
-
-                if self.command == "exit()":
-                    break
-
-        except (KeyboardInterrupt, SystemExit):
-            print("\nServer connection closed")
-
+            async with self.server:
+                await self.server.serve_forever()
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            print("Server is closing...")
+        except socket.error as e:
+            print(f"\nSocket Error\n{e}")
         finally:
-            self.socket.close()
+            self.server.close()
+            await self.server.wait_closed()
+            print("Server closed")
 
-    
-    def new_client(self):
-        while True:
-            sock, addr = self.socket.accept()
 
-            # starts server interaction with user in a new thread
-            threading.Thread(target=Client(sock, addr).handling, daemon=True).start()
+    async def new_client(self, reader, writer):
+        addr = writer.get_extra_info("peername")
+        await Client(reader, writer, addr[0]).handling()
 
 
 class Client:    
-    def __init__(self, sock, addr):
-        self.socket = sock
-        self.address = addr[0]
+    def __init__(self, reader, writer, address):
+        self.reader = reader
+        self.writer = writer
+        self.address = address
 
 
-    def handling(self):
+    async def handling(self):
         print("[%s] (%s) Client connected" % (datetime.now().strftime("%H:%M"), self.address))
+        async with clients_lock:
+            clients.append(self)
 
-        with clients_lock:
-            clients.append(self.socket)
+        while True:
+            data = await self.reader.read(1024) # getting user data
 
-        try:
-            while True:
-                data = self.socket.recv(1024) # getting user data
+            if data: # checks if data is not nothing
+                msg = pickle.loads(data)
 
-                if data: # checks if data is not nothing
-                    msg = pickle.loads(data)
+                async with clients_lock:
+                    for client in clients:
+                        if client != self:
+                            client.writer.write(pickle.dumps(msg))
+                            await client.writer.drain()
 
-                    with clients_lock:
-                        for client in clients:
-                            if client != self.socket:
-                                client.send(pickle.dumps(msg))
+                print("[%s] %s: %s" % (datetime.now().strftime("%H:%M"), msg.nickname, msg.content))
+            else:
+                break
 
-                    print("[%s] %s: %s" % (datetime.now().strftime("%H:%M"), msg.nickname, msg.content))
+        async with clients_lock:
+            clients.remove(self)
 
-        except ConnectionResetError:
-            print("[%s] (%s) Client disconected" % (datetime.now().strftime("%H:%M"), self.address))
+        self.writer.close()
+        await self.writer.wait_closed()
 
-            with clients_lock:
-                clients.remove(self.socket)
-
-        finally:
-            self.socket.close()
+        print("[%s] (%s) Client disconnected" % (datetime.now().strftime("%H:%M"), self.address))
 
 
 class Message:
@@ -115,4 +113,4 @@ class Message:
 
 
 if __name__ == "__main__":
-    main()
+    init()

@@ -1,5 +1,9 @@
-import pygetwindow, threading, argparse, pickle, socket, sys, os
-from windows_toasts import Toast, InteractableWindowsToaster
+import asyncio
+import argparse
+import pickle
+import socket
+import sys
+import os
 from datetime import datetime
 
 
@@ -17,36 +21,27 @@ def nickname_creation():
 
 
 def init():
-    global parser, window_title
+    global parser
     
     # creates an argument parser to intercept the arguments that user enters when calling a file
     parser = argparse.ArgumentParser()
-
     parser.add_argument("-i", "--ip", required=True, help="ip of the server socket")
     parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
 
     clear_screen()
-
-    if not parser.parse_args().ip:
-        parser.error("IP (-i) of the socket wasn't given")
-
-    window_title = pygetwindow.getActiveWindowTitle()
-
-    main()
+    asyncio.run(main())
 
 
-def main():
+async def main():
+    ip = parser.parse_args().ip
+    port = parser.parse_args().port or 8383
+
     nickname = nickname_creation()
 
     try:
-        if not parser.parse_args().port:
-            print("Port (-p) of the socket wasn't given. Default port: 8383\n")
-            Client(parser.parse_args().ip, 8383, nickname).connect()
-        else:
-            Client(parser.parse_args().ip, parser.parse_args.port, nickname).connect()
-
+        await Client(ip, port, nickname).connect()
     except socket.error as e:
-        print("Socket Error\n%s" % e)
+        print(f"\n[Socket Error]\n{e}")
 
 
 class Client:
@@ -58,51 +53,42 @@ class Client:
         self.nickname = nickname
 
 
-    def connect(self):
-        print("[%s] Trying to connect to the server..." % datetime.now().strftime("%H:%M"))
+    async def connect(self):
+        print(f"[{datetime.now().strftime("%H:%M")}] Trying to connect to the server...")
 
         try:
-            self.socket.connect((self.host, self.port))
-            print("[%s] Connection with the server establishment!\n" % datetime.now().strftime("%H:%M"))
-            
-            threading.Thread(target=self.receive).start() # starts a loop to receive messages in a new thread
-            threading.Thread(target=self.send).start() # starts a loop to send messages in a new thread
+            self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
+            print(f"[{datetime.now().strftime("%H:%M")}] Connection with the server established!\n")
 
+            await asyncio.gather(self.receive(), self.send())
+        except ConnectionResetError:
+            print("Server connection closed")
+        except asyncio.CancelledError:
+            print("You disconnected from the server")
         except socket.error as e:
-            print("Connecting error: %s" % e)
-
-        except (KeyboardInterrupt, SystemExit):
-            print("[%s] You disconnected from the server!" % datetime.now().strftime("%H:%M"))
-            self.socket.close()
+            print(f"\nSocket Error\n{e}")
 
     
-    def send(self):
-        try:
-            while True:
-                msg = input()
-                msg = Message("msg", datetime.now().strftime("%H:%M"), self.nickname, msg)
+    async def send(self):
+        loop = asyncio.get_event_loop()
+            
+        while True:
+            msg = await loop.run_in_executor(None, input)
+            msg = Message("msg", datetime.now().strftime("%H:%M"), self.nickname, msg)
 
-                self.socket.send(pickle.dumps(msg))
+            if self.writer:
+                self.writer.write(pickle.dumps(msg))
+                await self.writer.drain()
 
-        except (KeyboardInterrupt, SystemExit, EOFError):
-            return
 
-
-    def receive(self):
-        try:
-            while True:
-                data = self.socket.recv(1024) # gets data from the server in utf-8 format
+    async def receive(self):
+        while True:
+            if self.reader:
+                data = await self.reader.read(1024) # gets data from the server in utf-8 format
 
                 if data:
                     msg = pickle.loads(data)
-
-                    print("[%s] %s: %s" % (datetime.now().strftime("%H:%M"), msg.nickname, msg.content))
-
-                    if pygetwindow.getActiveWindowTitle() != window_title:
-                        InteractableWindowsToaster("WhisperNet").show_toast(Toast([msg.nickname, msg.content]))
-
-        except (ConnectionResetError, ConnectionAbortedError):
-            print("[%s] Connection to the server lost" % datetime.now().strftime("%H:%M"))
+                    print(f"[{datetime.now().strftime("%H:%M")}] {msg.nickname}: {msg.content}")
 
 
 class Message:
