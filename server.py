@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import argparse
 import pickle
 import socket
@@ -19,6 +20,14 @@ def clear_screen():
         os.system("clear")
 
 
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(asctime)s] [%(levelname)s] %(message)s',
+        datefmt='%H:%M'
+    )
+
+
 def init():
     global parser
 
@@ -27,6 +36,8 @@ def init():
     parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
 
     clear_screen()
+    setup_logging()
+    
     asyncio.run(main())
 
 
@@ -34,10 +45,7 @@ async def main():
     ip = socket.gethostbyname(socket.gethostname())
     port = parser.parse_args().port or 8383
 
-    try:
-        await Server(ip, port).start()
-    except socket.error as e:
-        print(f"\n[Socket Error]\n{e}")
+    await Server(ip, port).start()
 
 
 class Server:
@@ -51,19 +59,19 @@ class Server:
     async def start(self):        
         try:
             self.server = await asyncio.start_server(self.new_client, self.host, self.port)
-            print("%s:%s" % (self.host, self.port))
-            print("[%s] Waiting for new connections\n" % datetime.now().strftime("%H:%M"))
+            logging.info(f"{self.host}:{self.port}")
+            logging.info("Waiting for new connections\n")
 
             async with self.server:
                 await self.server.serve_forever()
         except (asyncio.CancelledError, KeyboardInterrupt):
-            print("Server is closing...")
+            logging.info("Server is closing...")
         except socket.error as e:
-            print(f"\nSocket Error\n{e}")
+            logging.warning(f"\nSocket Error\n{e}")
         finally:
             self.server.close()
             await self.server.wait_closed()
-            print("Server closed")
+            logging.info("Server closed successfully")
 
 
     async def new_client(self, reader, writer):
@@ -79,7 +87,7 @@ class Client:
 
 
     async def handling(self):
-        print("[%s] (%s) Client connected" % (datetime.now().strftime("%H:%M"), self.address))
+        logging.info(f"Client ({self.address}) connected")
         async with clients_lock:
             clients.append(self)
 
@@ -94,8 +102,8 @@ class Client:
                         if client != self:
                             client.writer.write(pickle.dumps(msg))
                             await client.writer.drain()
-
-                print("[%s] %s: %s" % (datetime.now().strftime("%H:%M"), msg.nickname, msg.content))
+                
+                logging.info(f"{msg.nickname}: {msg.content}")
             else:
                 break
 
@@ -105,7 +113,7 @@ class Client:
         self.writer.close()
         await self.writer.wait_closed()
 
-        print("[%s] (%s) Client disconnected" % (datetime.now().strftime("%H:%M"), self.address))
+        logging.info(f"Client ({self.address}) disconnected")
 
 
 class Message:
