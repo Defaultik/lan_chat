@@ -1,4 +1,4 @@
-## lan_chat v1
+## lan_chat v2
 this is simple python utility that allows you to communicate with your friends in the same lan. [example](https://i.imgur.com/fCjfQsc.png)
 
 ## features
