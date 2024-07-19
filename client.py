@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import argparse
 import pickle
 import socket
@@ -14,7 +15,16 @@ def clear_screen():
     else:
         os.system("clear")
 
+    
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(asctime)s] [%(levelname)s] %(message)s',
+        datefmt='%H:%M'
+    )
 
+
+# TODO: nicknames blacklist
 def nickname_creation():
     nickname = input("Enter your nickname: ")
     return nickname
@@ -29,19 +39,17 @@ def init():
     parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
 
     clear_screen()
+    setup_logging()
+
     asyncio.run(main())
 
 
 async def main():
     ip = parser.parse_args().ip
     port = parser.parse_args().port or 8383
-
     nickname = nickname_creation()
 
-    try:
-        await Client(ip, port, nickname).connect()
-    except socket.error as e:
-        print(f"\n[Socket Error]\n{e}")
+    await Client(ip, port, nickname).connect()
 
 
 class Client:
@@ -51,29 +59,34 @@ class Client:
         self.host = host
         self.port = port
         self.nickname = nickname
+        self.message_queue = asyncio.Queue()
 
 
     async def connect(self):
-        print(f"[{datetime.now().strftime("%H:%M")}] Trying to connect to the server...")
+        logging.info("Trying to connect to the server...")
 
         try:
             self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
-            print(f"[{datetime.now().strftime("%H:%M")}] Connection with the server established!\n")
+            logging.info("Connection with the server established!\n")
 
-            await asyncio.gather(self.receive(), self.send())
-        except ConnectionResetError:
-            print("Server connection closed")
+            await asyncio.gather(self.receive(), self.send(), self.input_handler())
         except asyncio.CancelledError:
-            print("You disconnected from the server")
+            logging.info("You disconnected from the server")
         except socket.error as e:
-            print(f"\nSocket Error\n{e}")
+            logging.warning(f"Socket Error: {e}")
+
+    
+    async def input_handler(self):
+        loop = asyncio.get_event_loop()
+        
+        while True:
+            msg = await loop.run_in_executor(None, input)
+            await self.message_queue.put(msg)
 
     
     async def send(self):
-        loop = asyncio.get_event_loop()
-            
         while True:
-            msg = await loop.run_in_executor(None, input)
+            msg = await self.message_queue.get()
             msg = Message("msg", datetime.now().strftime("%H:%M"), self.nickname, msg)
 
             if self.writer:
@@ -83,12 +96,21 @@ class Client:
 
     async def receive(self):
         while True:
-            if self.reader:
+            try:
                 data = await self.reader.read(1024) # gets data from the server in utf-8 format
 
                 if data:
                     msg = pickle.loads(data)
-                    print(f"[{datetime.now().strftime("%H:%M")}] {msg.nickname}: {msg.content}")
+                    logging.info(f"{msg.nickname}: {msg.content}")
+                else:
+                    break
+            except (asyncio.IncompleteReadError, ConnectionResetError):
+                break
+        
+        logging.info("Connection lost")
+
+        self.writer.close()
+        await self.writer.wait_closed()
 
 
 class Message:
