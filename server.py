@@ -5,15 +5,14 @@ import pickle
 import socket
 import sys
 import os
-from datetime import datetime
 
 
 clients = []
 clients_lock = asyncio.Lock()
 
 
-# terminal screen clearing function in both types of systems (unix-like & win)
 def clear_screen():
+    # Clear the terminal on Unix and Windows systems
     if (sys.platform == "win32"):
         os.system("cls")
     else:
@@ -31,12 +30,12 @@ def setup_logging():
 def init():
     global parser
 
-    # creates an argument parser to intercept the arguments that user enters when calling a file
+    # Program arguments interception
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
 
-    clear_screen()
     setup_logging()
+    clear_screen()
     
     asyncio.run(main())
 
@@ -49,7 +48,7 @@ async def main():
 
 
 class Server:
-    # defines our ip, port, socket to variables
+    # Server management functions
     def __init__(self, host, port):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.host = host
@@ -74,12 +73,14 @@ class Server:
             logging.info("Server closed successfully")
 
 
+    # New client interception
     async def new_client(self, reader, writer):
         addr = writer.get_extra_info("peername")
         await Client(reader, writer, addr[0]).handling()
 
 
-class Client:    
+class Client:
+    # Client management functions
     def __init__(self, reader, writer, address):
         self.reader = reader
         self.writer = writer
@@ -92,9 +93,9 @@ class Client:
             clients.append(self)
 
         while True:
-            data = await self.reader.read(1024) # getting user data
+            data = await self.reader.read(1024) # data from the client
 
-            if data: # checks if data is not nothing
+            if data: # if client still connected
                 msg = pickle.loads(data)
 
                 async with clients_lock:

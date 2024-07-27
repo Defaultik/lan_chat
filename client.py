@@ -8,8 +8,8 @@ import os
 from datetime import datetime
 
 
-# terminal screen clearing function in both types of systems (unix-like & win)
 def clear_screen():
+    # Clear the terminal on Unix and Windows systems
     if (sys.platform == "win32"):
         os.system("cls")
     else:
@@ -33,13 +33,13 @@ def nickname_creation():
 def init():
     global parser
     
-    # creates an argument parser to intercept the arguments that user enters when calling a file
+    # Program arguments interception
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--ip", required=True, help="ip of the server socket")
     parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
 
-    clear_screen()
     setup_logging()
+    clear_screen()
 
     asyncio.run(main())
 
@@ -53,7 +53,7 @@ async def main():
 
 
 class Client:
-    # defines our ip, port, socket to variables
+    # Client-Server interactions functions
     def __init__(self, host, port, nickname):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.host = host
@@ -97,9 +97,9 @@ class Client:
     async def receive(self):
         while True:
             try:
-                data = await self.reader.read(1024) # gets data from the server in utf-8 format
+                data = await self.reader.read(1024) # data from the server
 
-                if data:
+                if data: # if server still responding
                     msg = pickle.loads(data)
                     logging.info(f"{msg.nickname}: {msg.content}")
                 else:
