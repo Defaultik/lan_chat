@@ -5,6 +5,7 @@ import pickle
 import socket
 import sys
 import os
+from encryption import encrypt, decrypt
 from datetime import datetime
 
 
@@ -87,7 +88,7 @@ class Client:
     async def send(self):
         while True:
             msg = await self.message_queue.get()
-            msg = Message("msg", datetime.now().strftime("%H:%M"), self.nickname, msg)
+            msg = Message("msg", datetime.now().strftime("%H:%M"), self.nickname, encrypt(msg))
 
             if self.writer:
                 self.writer.write(pickle.dumps(msg))
@@ -101,7 +102,7 @@ class Client:
 
                 if data: # if server still responding
                     msg = pickle.loads(data)
-                    logging.info(f"{msg.nickname}: {msg.content}")
+                    logging.info(f"{msg.nickname}: {decrypt(msg.content)}")
                 else:
                     break
             except (asyncio.IncompleteReadError, ConnectionResetError):
