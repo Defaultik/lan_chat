@@ -1,4 +1,4 @@
-## lan_chat v2
+## lan_chat
 this is simple python utility that allows you to communicate with your friends in the same lan. [example](https://i.imgur.com/fCjfQsc.png)
 
 ## features
@@ -8,8 +8,8 @@ this is simple python utility that allows you to communicate with your friends i
 * pm's (planned)
 
 ## file manual
-* [**source/client/client.py**](https://i.imgur.com/lNTdMYC.png) - for any client who wants to connect to your server
-* [**source/server/server.py**](https://i.imgur.com/ry9Iu9H.png) - for those who want to have their own lan chat
+* [**source/client/client.py**](https://github.com/Defaultik/lan_chat/blob/main/source/client/client.py) - for any client who wants to connect to your server
+* [**source/server/server.py**](https://github.com/Defaultik/lan_chat/blob/main/source/server/server.py) - for those who want to have their own lan chat
 
 
 ##
