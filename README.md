@@ -5,6 +5,7 @@ this is simple python utility that allows you to communicate with your friends i
 * nickname creation
 * server commands
 * encryption
+* rsa + aes encryption algorithm (planned)
 * pm's (planned)
 
 ## file manual
