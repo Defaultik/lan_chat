@@ -61,40 +61,43 @@ class User:
         self.ip_address = ip_address
         self.reader = reader
         self.writer = writer
-        self.public_key = ""
+        self.public_rsa_key = ""
 
 
     async def handshake(self):
         logging.info(f"[{self.ip_address}] Connected to the server")
-        logging.info(f"[{self.ip_address}] Waiting for encryption key...")
 
         for _ in range(3):
             logging.info(f"[{self.ip_address}] Trying to get encryption key...")
 
-            data = await self.reader.read(1024)
-            if data:
+            try:
+                data = await asyncio.wait_for(self.reader.read(1024), timeout=5)
+            except asyncio.TimeoutError:
+                continue
+
+            if not data:
+                break
+            
+            try:
                 data = pickle.loads(data)
+            except pickle.UnpicklingError:
+                logging.error(f"[{self.ip_address}] Failed to deserialize message")
+                continue
 
-                # checks if user's message is rsa key
-                if RSA.key_validation(data):
-                    logging.info(f"[{self.ip_address}] Client encryption key collected")
+            # checks if user's message is rsa key
+            if RSA.key_validation(data):
+                logging.info(f"[{self.ip_address}] Encryption key collected")
+                self.public_rsa_key = data
 
-                    self.public_key = data
+                if self.writer:
+                    self.writer.write(pickle.dumps("OK"))
+                    await self.writer.drain()
 
-                    if self.writer:
-                        self.writer.write(pickle.dumps("OK"))
-                        await self.writer.drain()
+                break
 
-                    break
-                
-                
-                await asyncio.sleep(5)
-
-        if self.public_key:
+        if self.public_rsa_key:
             await self.handling()
         else:
-            logging.info(f"[{self.ip_address}] Failed to get an encryption key")
-
             self.writer.close()
             await self.writer.wait_closed()
 
@@ -105,21 +108,26 @@ class User:
         async with clients_lock:
             clients.append(self)
 
-        while True:
+        while True:             
             data = await self.reader.read(1024)
-
             if not data:
                 break
 
             try:
                 data = pickle.loads(data)
-            except pickle.PickleError:
+            except pickle.UnpicklingError:
                 logging.error(f"[{self.ip_address}] Failed to deserialize message")
                 break
 
+            if (len(clients) == 1) and (data == "ALONE"):
+                msg = "You are the only client on the server, please wait until the other person connects..."
+                if self.writer:
+                    self.writer.write(pickle.dumps(msg))
+                    await self.writer.drain()
+
             if isinstance(data, Message):
-                # TODO: send to other clients this message
-                ...
+                # TODO: send message to companion
+                print(data.content)
 
 
         self.writer.close()
