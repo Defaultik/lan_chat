@@ -57,7 +57,6 @@ class Client:
         while True:
             msg = await self.message_queue.get()
             msg = Message("CHAT", self.nickname, msg)
-            # msg = Message("msg", datetime.now().strftime("%H:%M"), self.nickname, encrypt(msg))
 
             if self.writer:
                 self.writer.write(pickle.dumps(msg))
