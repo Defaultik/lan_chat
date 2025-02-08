@@ -1,22 +1,11 @@
 import asyncio
-import logging
-import argparse
-import pickle
 import socket
-import sys
-import os
+import logging
+import pickle
 
 
 clients = []
 clients_lock = asyncio.Lock()
-
-
-def clear_screen():
-    # Clear the terminal on Unix and Windows systems
-    if (sys.platform == "win32"):
-        os.system("cls")
-    else:
-        os.system("clear")
 
 
 def setup_logging():
@@ -27,99 +16,103 @@ def setup_logging():
     )
 
 
-def init():
-    global parser
-
-    # Program arguments interception
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
-
-    setup_logging()
-    clear_screen()
-    
-    asyncio.run(main())
-
-
 async def main():
+    setup_logging()
+
     ip = socket.gethostbyname(socket.gethostname())
-    port = parser.parse_args().port or 8383
+    port = 8383
 
     await Server(ip, port).start()
 
 
 class Server:
-    # Server management functions
     def __init__(self, host, port):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.host = host
         self.port = port
 
-    
-    async def start(self):        
+
+    async def start(self):
         try:
             self.server = await asyncio.start_server(self.new_client, self.host, self.port)
+
             logging.info(f"{self.host}:{self.port}")
-            logging.info("Waiting for new connections\n")
+            logging.info("Waiting for new connections...\n")
 
             async with self.server:
                 await self.server.serve_forever()
         except (asyncio.CancelledError, KeyboardInterrupt):
             logging.info("Server is closing...")
-        except socket.error as e:
-            logging.warning(f"\nSocket Error\n{e}")
         finally:
             self.server.close()
             await self.server.wait_closed()
-            logging.info("Server closed successfully")
+            
+            logging.info("Server closed")
 
 
-    # New client interception
     async def new_client(self, reader, writer):
-        addr = writer.get_extra_info("peername")
-        await Client(reader, writer, addr[0]).handling()
+        ip = writer.get_extra_info("peername")[0]
+        await User(ip, reader, writer).handling()
+
+    
+    async def get_users_count(self) -> int:
+        return len(clients)
 
 
-class Client:
-    # Client management functions
-    def __init__(self, reader, writer, address):
+class User(Server):
+    def __init__(self, ip_address, reader, writer):
+        self.ip_address = ip_address
         self.reader = reader
         self.writer = writer
-        self.address = address
+        self.public_rsa_key = ""
 
 
     async def handling(self):
-        logging.info(f"Client ({self.address}) connected")
         async with clients_lock:
             clients.append(self)
+    
+        while True:             
+            data = await self.reader.read(1024)
+            if not data:
+                break
 
-        while True:
-            data = await self.reader.read(1024) # data from the client
+            try:
+                data = pickle.loads(data)
+            except pickle.UnpicklingError:
+                logging.error(f"[{self.ip_address}] Failed to deserialize message")
+                break
 
-            if data: # if client still connected
-                msg = pickle.loads(data)
+            if (await self.get_users_count() == 1):
+                msg = "You are the only client on the server, please wait until the other person connects..."
+                if self.writer:
+                    self.writer.write(pickle.dumps(msg))
+                    await self.writer.drain()
 
+            if isinstance(data, Message):
                 async with clients_lock:
                     for client in clients:
                         if client != self:
-                            client.writer.write(pickle.dumps(msg))
+                            client.writer.write(pickle.dumps(data))
                             await client.writer.drain()
                 
-                logging.info(f"{msg.nickname}: {msg.content}")
-            else:
-                break
+                logging.info(f"{data.nickname}: {data.content}")
 
-        async with clients_lock:
-            clients.remove(self)
 
         self.writer.close()
         await self.writer.wait_closed()
 
-        logging.info(f"Client ({self.address}) disconnected")
+        async with clients_lock:
+            clients.remove(self)
+
+        logging.info(f"[{self.ip_address}] Disconnected from the server")
 
 
 class Message:
-    pass
+    def __init__(self, category, nickname, content):
+        self.category = category
+        self.nickname = nickname
+        self.content = content
 
 
 if __name__ == "__main__":
-    init()
+    asyncio.run(main())

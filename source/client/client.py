@@ -1,22 +1,8 @@
 import asyncio
 import logging
-import argparse
 import pickle
-import socket
-import sys
-import os
-from encryption import encrypt, decrypt
-from datetime import datetime
 
 
-def clear_screen():
-    # Clear the terminal on Unix and Windows systems
-    if (sys.platform == "win32"):
-        os.system("cls")
-    else:
-        os.system("clear")
-
-    
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -25,38 +11,19 @@ def setup_logging():
     )
 
 
-# TODO: nicknames blacklist
-def nickname_creation():
-    nickname = input("Enter your nickname: ")
-    return nickname
-
-
-def init():
-    global parser
-    
-    # Program arguments interception
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--ip", required=True, help="ip of the server socket")
-    parser.add_argument("-p", "--port", type=int, help="port of the server socket (0-65535)")
-
-    setup_logging()
-    clear_screen()
-
-    asyncio.run(main())
-
-
 async def main():
-    ip = parser.parse_args().ip
-    port = parser.parse_args().port or 8383
-    nickname = nickname_creation()
+    setup_logging()
+
+    ip = input("Enter IP of the server: ")
+    port = 8383
+
+    nickname = input("Enter nickname: ")
 
     await Client(ip, port, nickname).connect()
 
 
 class Client:
-    # Client-Server interactions functions
     def __init__(self, host, port, nickname):
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.host = host
         self.port = port
         self.nickname = nickname
@@ -71,12 +38,13 @@ class Client:
             logging.info("Connection with the server established!\n")
 
             await asyncio.gather(self.receive(), self.send(), self.input_handler())
-        except asyncio.CancelledError:
-            logging.info("You disconnected from the server")
-        except socket.error as e:
-            logging.warning(f"Socket Error: {e}")
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            self.writer.close()
+            await self.writer.wait_closed()
 
-    
+            logging.info("You disconnected from the server")
+
+        
     async def input_handler(self):
         loop = asyncio.get_event_loop()
         
@@ -88,7 +56,8 @@ class Client:
     async def send(self):
         while True:
             msg = await self.message_queue.get()
-            msg = Message("msg", datetime.now().strftime("%H:%M"), self.nickname, encrypt(msg))
+            msg = Message("CHAT", self.nickname, msg)
+            # msg = Message("msg", datetime.now().strftime("%H:%M"), self.nickname, encrypt(msg))
 
             if self.writer:
                 self.writer.write(pickle.dumps(msg))
@@ -98,29 +67,35 @@ class Client:
     async def receive(self):
         while True:
             try:
-                data = await self.reader.read(1024) # data from the server
+                data = await self.reader.read(1024)
 
-                if data: # if server still responding
-                    msg = pickle.loads(data)
-                    logging.info(f"{msg.nickname}: {decrypt(msg.content)}")
-                else:
+                if not data:
                     break
+                
+                try:
+                    data = pickle.loads(data)
+                except pickle.PickleError:
+                    logging.error("Failed to deserialize message")
+                    break
+
+                if isinstance(data, Message):
+                    if data.category == "CHAT":
+                        logging.info(f"{data.nickname}: {data.content}")
             except (asyncio.IncompleteReadError, ConnectionResetError):
                 break
-        
-        logging.info("Connection lost")
 
         self.writer.close()
         await self.writer.wait_closed()
 
+        logging.warning("Connection lost")
+
 
 class Message:
-    def __init__(self, type, time, nickname, content):
-        self.type = type
-        self.time = time
+    def __init__(self, category, nickname, content):
+        self.category = category
         self.nickname = nickname
         self.content = content
-
+        
 
 if __name__ == "__main__":
-    init()
+    asyncio.run(main())
