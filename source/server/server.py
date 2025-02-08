@@ -68,6 +68,7 @@ class User(Server):
 
 
     async def handling(self):
+        logging.info(f"Client ({self.ip_address}) connected")
         async with clients_lock:
             clients.append(self)
     
@@ -81,9 +82,9 @@ class User(Server):
             except pickle.UnpicklingError:
                 logging.error(f"[{self.ip_address}] Failed to deserialize message")
                 break
-
+            
             if (await self.get_users_count() == 1):
-                msg = "You are the only client on the server, please wait until the other person connects..."
+                msg = Message("CHAT", "SYSTEM", "You are the only client on the server, please wait until the other person connects...")
                 if self.writer:
                     self.writer.write(pickle.dumps(msg))
                     await self.writer.drain()
